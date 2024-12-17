@@ -1,5 +1,5 @@
 const rings = [
-      { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '💚' },
+      { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '<a:a_:1288287338983849995>' },
       { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
       { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
       { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
