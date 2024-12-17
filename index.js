@@ -42,7 +42,7 @@ const ShopItem = mongoose.model('ShopItem', new mongoose.Schema({
 // Dữ liệu shop mặc định
 const initializeShop = async () => {
   const defaultRings = [
-    { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '🟢' },
+    { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '<a:CC_watim13:1306650417416900718>' },
     { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
     { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
     { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
