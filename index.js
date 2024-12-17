@@ -1,20 +1,9 @@
-const rings = [
-      { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '<a:a_:1288287338983849995>' },
-      { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
-      { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
-      { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
-      { id: '05', name: 'ENZ Aquamarine', price: 2500000, emoji: '💎' },
-      { id: '06', name: 'ENZ Emerald', price: 5000000, emoji: '💚' },
-      { id: '07', name: 'ENZ Ruby', price: 10000000, emoji: '❤️' },
-      { id: '333', name: 'ENZ Sapphire', price: 25000000, emoji: '💙', lovePoints: 333 },
-      { id: '999', name: 'ENZ Centenary', price: 99999999, emoji: '💖', lovePoints: 999 },
-    ];
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const mongoose = require('mongoose');
-require('dotenv').config(); // Load biến môi trường từ .env
-const express = require('express'); // Import express
+require('dotenv').config();
+const express = require('express');
 
-// Lấy thông tin từ biến môi trường
+// Cấu hình bot
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const DEFAULT_PREFIX = process.env.DEFAULT_PREFIX || 'e';
@@ -25,7 +14,7 @@ mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true 
   .then(() => console.log('✅ Kết nối MongoDB thành công!'))
   .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
 
-// Tạo model dữ liệu người dùng
+// Models
 const User = mongoose.model('User', new mongoose.Schema({
   userID: String,
   balance: { type: Number, default: 0 },
@@ -38,266 +27,213 @@ const User = mongoose.model('User', new mongoose.Schema({
     image: { type: String, default: null },
     thumbnail: { type: String, default: null }
   },
-  inventory: { type: Array, default: [] }
+  inventory: { type: Array, default: [] },
+  lastLuvTime: { type: Number, default: 0 }
 }));
 
-// Cấu hình client Discord
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
+const ShopItem = mongoose.model('ShopItem', new mongoose.Schema({
+  id: String,
+  name: String,
+  price: Number,
+  emoji: String,
+  lovePoints: { type: Number, default: 0 }
+}));
+
+// Dữ liệu shop mặc định
+const initializeShop = async () => {
+  const defaultRings = [
+    { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '🟢' },
+    { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
+    { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
+    { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
+    { id: '05', name: 'ENZ Aquamarine', price: 2500000, emoji: '💎' },
+    { id: '06', name: 'ENZ Emerald', price: 5000000, emoji: '💚' },
+    { id: '07', name: 'ENZ Ruby', price: 10000000, emoji: '❤️' },
+    { id: '333', name: 'ENZ Sapphire', price: 25000000, emoji: '💙', lovePoints: 333 },
+    { id: '999', name: 'ENZ Centenary', price: 99999999, emoji: '💖', lovePoints: 999 }
+  ];
+
+  for (const ring of defaultRings) {
+    await ShopItem.updateOne({ id: ring.id }, { $set: ring }, { upsert: true });
+  }
+  console.log('✅ Dữ liệu shop nhẫn đã được khởi tạo.');
+};
+initializeShop();
+
+// Khởi tạo bot
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ]
+});
 const prefix = DEFAULT_PREFIX;
 
-// Sự kiện bot khởi động
+// Embed helper
+const defaultEmbed = (title, description, color = 'Red') =>
+  new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+
+// Khởi động bot
 client.once('ready', () => {
   console.log(`🤖 Bot đã hoạt động với tên: ${client.user.tag}`);
 });
 
-// Xử lý tin nhắn
+// Xử lý lệnh
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith(prefix)) return;
+  if (message.author.bot || !message.content.startsWith(prefix)) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // Embed mặc định
-  const defaultEmbed = (title, description, color = 'Red') =>
-    new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
-
-  // Kiểm tra hoặc tạo dữ liệu người dùng
   let userData = await User.findOne({ userID: message.author.id });
   if (!userData) {
     userData = new User({ userID: message.author.id });
     await userData.save();
   }
 
-  /** --- 1. Kiểm tra số dư "xu" --- */
+  /** 1. Kiểm tra số dư xu */
   if (command === 'xu') {
     return message.reply({
-      embeds: [
-        defaultEmbed(`💰 Số dư của bạn`, `Hiện tại bạn có **${userData.balance} xu**.`)
-      ]
+      embeds: [defaultEmbed('💰 Số dư', `Bạn có **${userData.balance.toLocaleString()} xu**.`)]
     });
   }
 
-  /** --- 2. Nhận quà tặng hàng ngày "daily" --- */
+  /** 2. Nhận quà hàng ngày */
   if (command === 'daily') {
     const reward = Math.floor(Math.random() * (20000 - 1000 + 1)) + 1000;
     userData.balance += reward;
     await userData.save();
     return message.reply({
-      embeds: [
-        defaultEmbed(
-          `🎁 Quà tặng hàng ngày`,
-          `Bạn đã nhận được **${reward} xu** hôm nay!\nSố dư hiện tại: **${userData.balance} xu**.`
-        )
-      ]
+      embeds: [defaultEmbed('🎁 Quà tặng hàng ngày', `Bạn nhận được **${reward.toLocaleString()} xu**.`)]
     });
   }
 
-  /** --- 3. Chuyển xu cho người khác "givexu" --- */
+  /** 3. Chuyển xu */
   if (command === 'givexu') {
     const target = message.mentions.users.first();
     const amount = parseInt(args[1]);
+    if (!target || isNaN(amount) || amount <= 0) return message.reply('❌ Cú pháp: `e givexu @user <số xu>`');
+    if (userData.balance < amount) return message.reply('❌ Bạn không đủ xu.');
 
-    if (!target || isNaN(amount) || amount <= 0) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng đề cập một người và số xu hợp lệ để chuyển!')]
-      });
-    }
-
-    const targetData = await User.findOne({ userID: target.id });
-    if (!targetData) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Người dùng này chưa được đăng ký trong hệ thống!')]
-      });
-    }
-
-    if (userData.balance < amount) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không đủ xu để thực hiện giao dịch!')]
-      });
-    }
+    const targetData = await User.findOneAndUpdate(
+      { userID: target.id },
+      { $inc: { balance: amount } },
+      { new: true, upsert: true }
+    );
 
     userData.balance -= amount;
-    targetData.balance += amount;
-
     await userData.save();
-    await targetData.save();
 
     return message.reply({
-      embeds: [
-        defaultEmbed(
-          `✅ Giao dịch thành công`,
-          `Bạn đã chuyển **${amount} xu** cho ${target.username}.\nSố dư hiện tại của bạn: **${userData.balance} xu**.`
-        )
-      ]
+      embeds: [defaultEmbed('✅ Giao dịch thành công', `Bạn đã chuyển **${amount.toLocaleString()} xu** cho **${target.username}**.`)]
     });
   }
 
-  /** --- 4. Đặt cược tài xỉu "tx" --- */
+  /** 4. Tài xỉu */
   if (command === 'tx') {
     const bet = parseInt(args[0]);
     const choice = args[1]?.toLowerCase();
+    if (isNaN(bet) || bet <= 0 || !['tài', 'xỉu'].includes(choice)) return message.reply('❌ Cú pháp: `e tx <số xu> <tài/xỉu>`');
+    if (userData.balance < bet) return message.reply('❌ Bạn không đủ xu.');
 
-    if (isNaN(bet) || !['tài', 'xỉu'].includes(choice)) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Cú pháp: `e<tx> <số tiền> <tài/xỉu>`.')]
-      });
-    }
-
-    if (userData.balance < bet) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không đủ xu để đặt cược!')]
-      });
-    }
-
-    const dice1 = Math.floor(Math.random() * 6) + 1;
-    const dice2 = Math.floor(Math.random() * 6) + 1;
-    const dice3 = Math.floor(Math.random() * 6) + 1;
-    const total = dice1 + dice2 + dice3;
-
+    const dice = [1, 2, 3].map(() => Math.floor(Math.random() * 6) + 1);
+    const total = dice.reduce((sum, num) => sum + num, 0);
     const result = total <= 10 ? 'xỉu' : 'tài';
     const won = result === choice;
 
-    if (won) {
-      userData.balance += bet;
-    } else {
-      userData.balance -= bet;
-    }
-
+    userData.balance += won ? bet : -bet;
     await userData.save();
 
     return message.reply({
-      embeds: [
-        defaultEmbed(
-          `🎲 Kết quả tài xỉu`,
-          `🎲 Xúc xắc: [${dice1}, ${dice2}, ${dice3}] (Tổng: ${total})\nKết quả: **${result.toUpperCase()}**\nBạn ${won ? 'thắng' : 'thua'}! Số dư: **${userData.balance} xu**.`
-        )
-      ]
+      embeds: [defaultEmbed('🎲 Kết quả Tài Xỉu', `🎲 Kết quả: **${total}** - **${result.toUpperCase()}**\nBạn ${won ? 'thắng' : 'thua'} ${bet.toLocaleString()} xu.`)]
     });
   }
 
-  /** --- 5. Mua nhẫn từ cửa hàng "buy" --- */
-if (command === 'buy') {
-  const ringID = args[0];
-  if (!ringID) {
+  /** 5. Xem shop nhẫn */
+  if (command === 'shop') {
+    const rings = await ShopItem.find();
+    const shopItems = rings.map(r => `**ID:** ${r.id} | ${r.emoji} **${r.name}** - **${r.price.toLocaleString()} xu**`).join('\n');
+    return message.reply({ embeds: [defaultEmbed('💍 Cửa hàng nhẫn', shopItems)] });
+  }
+
+  /** 6. Mua nhẫn */
+  if (command === 'buy') {
+    const ringID = args[0];
+    const ring = await ShopItem.findOne({ id: ringID });
+    if (!ring) return message.reply('❌ Không tìm thấy nhẫn này.');
+
+    if (userData.balance < ring.price) return message.reply('❌ Bạn không đủ xu.');
+    userData.balance -= ring.price;
+    userData.inventory.push({ id: ring.id, name: ring.name, emoji: ring.emoji });
+    await userData.save();
+
     return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập ID nhẫn bạn muốn mua.', 'Red')]
+      embeds: [defaultEmbed('✅ Mua thành công', `Bạn đã mua nhẫn **${ring.emoji} ${ring.name}**.`)]
     });
   }
 
-  const ring = rings.find((r) => r.id === ringID);
-  if (!ring) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy nhẫn với ID đã cung cấp.', 'Red')]
-    });
-  }
-
-  if (userData.xu < ring.price) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', `Bạn không đủ xu để mua nhẫn **${ring.name}**.`, 'Red')]
-    });
-  }
-
-  userData.xu -= ring.price;
-  userData.inventory.push({ id: ring.id, name: ring.name, emoji: ring.emoji });
-  await userData.save();
-
-  return message.reply({
-    embeds: [
-      defaultEmbed(
-        '✅ Thành công',
-        `Bạn đã mua nhẫn **${ring.emoji} ${ring.name}** với giá **${ring.price.toLocaleString()} xu**. Hãy kiểm tra bằng lệnh \`inv\`.`,
-        '#FF00CB'
-      )
-    ]
-  });
-}
-
-  /** --- 6. Kiểm tra kho lưu trữ nhẫn "inv" --- */
+// 7. Kiểm tra kho nhẫn của người dùng
 if (command === 'inv') {
   const inventory = userData.inventory;
-  if (!inventory || inventory.length === 0) {
+  if (!inventory.length) {
     return message.reply({
-      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', '#FF00CB')]
+      embeds: [defaultEmbed('📦 Kho nhẫn', 'Bạn chưa sở hữu nhẫn nào.')]
     });
   }
 
-  const inventoryList = inventory
-    .map((item, index) => `**${index + 1}.** ${item.emoji} **${item.name}**`)
-    .join('\n');
-
+  const itemsList = inventory.map((item, index) => `${index + 1}. ${item.emoji} **${item.name}**`).join('\n');
   return message.reply({
-    embeds: [
-      defaultEmbed(
-        '📦 Kho lưu trữ nhẫn',
-        `Danh sách nhẫn bạn sở hữu:\n\n${inventoryList}`,
-        '#FF00CB'
-      )
-    ]
+    embeds: [defaultEmbed('📦 Kho nhẫn', `Danh sách nhẫn bạn sở hữu:\n\n${itemsList}`)]
   });
 }
 
-  /** --- 7. Tặng nhẫn cho người khác "gift" --- */
+// 8. Tặng nhẫn cho người khác
 if (command === 'gift') {
-  const inventory = userData.inventory;
-  if (!inventory || inventory.length === 0) {
-    return message.reply({
-      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', '#FF00CB')]
-    });
+  const target = message.mentions.users.first();
+  const ringIndex = parseInt(args[1]) - 1;
+
+  if (!target || isNaN(ringIndex) || ringIndex < 0 || ringIndex >= userData.inventory.length) {
+    return message.reply('❌ Cú pháp: `e gift @user <số thứ tự nhẫn>`.');
   }
 
-  const inventoryList = inventory
-    .map((item, index) => `**${index + 1}.** ${item.emoji} **${item.name}**`)
-    .join('\n');
+  const ring = userData.inventory.splice(ringIndex, 1)[0];
+  let targetData = await User.findOne({ userID: target.id });
+  if (!targetData) {
+    targetData = new User({ userID: target.id });
+  }
+
+  targetData.inventory.push(ring);
+
+  await userData.save();
+  await targetData.save();
 
   return message.reply({
-    embeds: [
-      defaultEmbed(
-        '📦 Kho lưu trữ nhẫn',
-        `Danh sách nhẫn bạn sở hữu:\n\n${inventoryList}`,
-        '#FF00CB'
-      )
-    ]
+    embeds: [defaultEmbed('🎁 Tặng nhẫn', `Bạn đã tặng **${ring.emoji} ${ring.name}** cho **${target.username}**.`)]
   });
 }
 
-  /** --- 8. Cầu hôn người khác "marry" --- */
+// 9. Cầu hôn người khác
 if (command === 'marry') {
   const target = message.mentions.users.first();
-  const index = parseInt(args[1]) - 1;
+  const ringIndex = parseInt(args[1]) - 1;
 
-  if (!target) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng tag người bạn muốn cầu hôn.', 'Red')]
-    });
+  if (!target || isNaN(ringIndex) || ringIndex < 0 || ringIndex >= userData.inventory.length) {
+    return message.reply('❌ Cú pháp: `e marry @user <số thứ tự nhẫn>`.');
   }
 
-  if (isNaN(index) || index < 0 || index >= userData.inventory.length) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập số thứ tự nhẫn hợp lệ trong kho.', 'Red')]
-    });
-  }
-
-  const ring = userData.inventory.splice(index, 1)[0];
+  const ring = userData.inventory.splice(ringIndex, 1)[0];
   await userData.save();
 
   const marryEmbed = defaultEmbed(
     '💍 Lời cầu hôn',
-    `**${message.author.username}** đã cầu hôn **${target.username}** bằng nhẫn **${ring.emoji} ${ring.name}**. Bạn có đồng ý không?`,
-    '#FF00CB'
+    `**${message.author.username}** đã cầu hôn **${target.username}** bằng nhẫn **${ring.emoji} ${ring.name}**.\nBạn có đồng ý không?`
   );
 
-  const acceptButton = new MessageButton()
-    .setCustomId('accept_marry')
-    .setLabel('Đồng ý')
-    .setStyle('SUCCESS');
-
-  const declineButton = new MessageButton()
-    .setCustomId('decline_marry')
-    .setLabel('Từ chối')
-    .setStyle('DANGER');
-
-  const row = new MessageActionRow().addComponents(acceptButton, declineButton);
+  const acceptButton = new ButtonBuilder().setCustomId('accept_marry').setLabel('Đồng ý 💖').setStyle(ButtonStyle.Success);
+  const declineButton = new ButtonBuilder().setCustomId('decline_marry').setLabel('Từ chối 💔').setStyle(ButtonStyle.Danger);
+  const row = new ActionRowBuilder().addComponents(acceptButton, declineButton);
 
   const marryMessage = await message.reply({ embeds: [marryEmbed], components: [row] });
 
@@ -308,25 +244,27 @@ if (command === 'marry') {
 
   collector.on('collect', async (interaction) => {
     if (interaction.customId === 'accept_marry') {
-      collector.stop('accepted');
-      userData.marriedTo = target.id;
-      userData.lovePoints = (userData.lovePoints || 0) + (ring.lovePoints || 0);
-      targetData.marriedTo = message.author.id;
+      userData.marriage.partnerID = target.id;
+      userData.marriage.ringID = ring.id;
+      userData.marriage.weddingDate = new Date();
+
+      let partnerData = await User.findOne({ userID: target.id });
+      if (!partnerData) partnerData = new User({ userID: target.id });
+      partnerData.marriage.partnerID = message.author.id;
 
       await userData.save();
-      await targetData.save();
+      await partnerData.save();
 
       return interaction.update({
-        embeds: [defaultEmbed('💖 Chúc mừng!', 'Cả hai đã kết hôn!', '#FF00CB')],
+        embeds: [defaultEmbed('💖 Chúc mừng!', `Cả hai đã chính thức kết hôn!`)],
         components: []
       });
-    } else if (interaction.customId === 'decline_marry') {
-      collector.stop('declined');
+    } else {
       userData.inventory.push(ring);
       await userData.save();
 
       return interaction.update({
-        embeds: [defaultEmbed('💔 Từ chối', `${target.username} đã từ chối lời cầu hôn.`, 'Red')],
+        embeds: [defaultEmbed('💔 Từ chối', `${target.username} đã từ chối lời cầu hôn.`)],
         components: []
       });
     }
@@ -337,642 +275,426 @@ if (command === 'marry') {
       userData.inventory.push(ring);
       userData.save();
       marryMessage.edit({
-        embeds: [defaultEmbed('⏰ Hết thời gian', 'Không có phản hồi từ đối phương.', 'Red')],
+        embeds: [defaultEmbed('⏰ Hết thời gian', 'Lời cầu hôn đã hết thời gian phản hồi.')],
         components: []
       });
     }
   });
 }
 
-  /** --- 9. Ly hôn "divorce" --- */
-  if (command === 'divorce') {
-    if (!userData.marriage.partnerID) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn để ly hôn!')]
-      });
-    }
-
-    const partnerData = await User.findOne({ userID: userData.marriage.partnerID });
-    if (!partnerData) return;
-
-    const filter = interaction => interaction.user.id === userData.marriage.partnerID;
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('acceptDivorce').setLabel('Đồng ý 💔').setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId('declineDivorce').setLabel('Từ chối ❌').setStyle(ButtonStyle.Secondary)
-    );
-
-    const divorceEmbed = new EmbedBuilder()
-      .setTitle('💔 Ly hôn')
-      .setDescription(`${message.author.username} muốn ly hôn với bạn. Bạn có đồng ý không?`)
-      .setColor('#FF00CB');
-
-    const divorceRequest = await message.reply({ embeds: [divorceEmbed], components: [row] });
-
-    const collector = divorceRequest.createMessageComponentCollector({ filter, time: 60000 });
-
-    collector.on('collect', async interaction => {
-      if (interaction.customId === 'acceptDivorce') {
-        userData.marriage = {};
-        partnerData.marriage = {};
-        await userData.save();
-        await partnerData.save();
-
-        interaction.reply({
-          embeds: [
-            defaultEmbed(
-              '💔 Đã ly hôn',
-              `${message.author.username} và ${partnerData.userID} đã chính thức ly hôn.`,
-              '#FF00CB'
-            )
-          ]
-        });
-        collector.stop();
-      } else {
-        interaction.reply({
-          embeds: [defaultEmbed('❌ Từ chối ly hôn', 'Đối tác của bạn đã từ chối ly hôn.')]
-        });
-        collector.stop();
-      }
-    });
-
-    collector.on('end', (_, reason) => {
-      if (reason === 'time') {
-        divorceRequest.edit({
-          components: [],
-          embeds: [defaultEmbed('⏰ Hết thời gian', 'Yêu cầu ly hôn đã hết thời gian trả lời.')]
-        });
-      }
-    });
+// 10. Ly hôn
+if (command === 'divorce') {
+  if (!userData.marriage.partnerID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.')] });
   }
 
-/** --- 10. Xem thông tin hôn nhân "pmarry" --- */
+  const partnerData = await User.findOne({ userID: userData.marriage.partnerID });
+  if (!partnerData) return;
+
+  userData.marriage = {};
+  partnerData.marriage = {};
+
+  await userData.save();
+  await partnerData.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('💔 Ly hôn', 'Bạn đã chính thức ly hôn.')]
+  });
+}
+
+// 11. Xem thông tin hôn nhân
 if (command === 'pmarry') {
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+  if (!userData.marriage.partnerID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.')] });
   }
 
-  // Lấy dữ liệu đối tác từ cơ sở dữ liệu
-  const partnerData = await User.findOne({ userId: userData.marriedTo });
-  if (!partnerData) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy thông tin đối tác.', 'Red')]
-    });
-  }
+  const partner = await User.findOne({ userID: userData.marriage.partnerID });
+  const ring = await ShopItem.findOne({ id: userData.marriage.ringID });
 
-  // Lấy thông tin nhẫn kết hôn
-  const marriageRing = userData.marriageRing || {};
-  const ringName = marriageRing.name || 'Không xác định';
-  const ringEmoji = marriageRing.emoji || '💍';
-
-  // Dữ liệu hôn nhân
-  const marriageDate = userData.marriageDate || 'Không xác định';
-  const lovePoints = userData.lovePoints || 0;
-  const caption = userData.marriageCaption ? `"${userData.marriageCaption}"` : null;
-
-  // Hình ảnh và thumbnail (nếu có)
-  const marriageImage = userData.marriageImage || null;
-  const marriageThumbnail = userData.marriageThumbnail || null;
-
-  // Embed hiển thị thông tin
   const embed = new EmbedBuilder()
-    .setColor('#FF00CB')
-    .setTitle(`💞 Thông tin hôn nhân của ${message.author.username}`)
-    .setDescription(`Bạn đang hạnh phúc với: **${partnerData.username}**`)
+    .setTitle('💞 Thông tin hôn nhân')
+    .setDescription(`Bạn đang hạnh phúc với: **${partner.username}**`)
     .addFields(
-      { name: '💍 Nhẫn kết hôn', value: `${ringEmoji} ${ringName}`, inline: true },
-      { name: '❤️ Điểm yêu thương', value: `${lovePoints}`, inline: true },
-      { name: '📅 Ngày kết hôn', value: `${marriageDate}`, inline: true }
-    );
-
-  // Thêm caption nếu có
-  if (caption) {
-    embed.addFields({ name: '✨ Caption', value: `${caption}` });
-  }
-
-  // Thêm hình ảnh hoặc emoji của nhẫn
-  if (marriageImage) {
-    embed.setImage(marriageImage);
-  } else {
-    embed.setDescription(`${embed.data.description}\n${ringEmoji}`);
-  }
-
-  // Thêm thumbnail nếu có
-  if (marriageThumbnail) {
-    embed.setThumbnail(marriageThumbnail);
-  }
+      { name: '💍 Nhẫn', value: `${ring.emoji} ${ring.name}`, inline: true },
+      { name: '❤️ Điểm yêu thương', value: `${userData.marriage.lovePoints || 0}`, inline: true },
+      { name: '📅 Ngày kết hôn', value: `${userData.marriage.weddingDate.toDateString()}`, inline: true }
+    )
+    .setColor('#FF00CB');
 
   return message.reply({ embeds: [embed] });
 }
 
-  /** --- 11. Thêm ảnh lớn "addimage" --- */
-  if (command === 'addimage') {
+   /** 12. Thêm ảnh lớn vào thông tin hôn nhân */
+if (command === 'addimage') {
   const imageUrl = args[0];
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+  if (!userData.marriage.partnerID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.')] });
   }
 
-  if (!imageUrl || !isValidImageUrl(imageUrl)) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng cung cấp một URL hình ảnh hợp lệ.', 'Red')]
-    });
+  if (!isValidImageUrl(imageUrl)) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng cung cấp URL hình ảnh hợp lệ.')] });
   }
 
-  userData.marriageInfo = userData.marriageInfo || {};
-  if (userData.marriageInfo.image) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Thông tin hôn nhân đã có ảnh lớn. Hãy xóa ảnh cũ trước.', 'Red')]
-    });
-  }
-
-  userData.marriageInfo.image = imageUrl;
+  userData.marriage.image = imageUrl;
   await userData.save();
 
   return message.reply({
-    embeds: [
-      defaultEmbed(
-        '✅ Thành công',
-        `Đã thêm ảnh lớn vào thông tin hôn nhân.`,
-        '#FF00CB'
-      )
-    ]
+    embeds: [defaultEmbed('✅ Thành công', 'Đã thêm ảnh lớn vào thông tin hôn nhân.')]
   });
 }
 
-  /** --- 12. Xóa ảnh lớn "delimage" --- */
-  if (command === 'delimage') {
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+/** 13. Xóa ảnh lớn khỏi thông tin hôn nhân */
+if (command === 'delimage') {
+  if (!userData.marriage.partnerID || !userData.marriage.image) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không có ảnh lớn nào để xóa.')] });
   }
 
-  if (!userData.marriageInfo || !userData.marriageInfo.image) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Thông tin hôn nhân không có ảnh lớn để xóa.', 'Red')]
-    });
-  }
-
-  delete userData.marriageInfo.image;
+  userData.marriage.image = null;
   await userData.save();
 
   return message.reply({
-    embeds: [
-      defaultEmbed(
-        '✅ Thành công',
-        `Đã xóa ảnh lớn khỏi thông tin hôn nhân.`,
-        '#FF00CB'
-      )
-    ]
+    embeds: [defaultEmbed('✅ Thành công', 'Ảnh lớn đã được xóa khỏi thông tin hôn nhân.')]
   });
 }
 
-  /** --- 13. Thêm thumbnail "addthumbnail" --- */
-  if (command === 'addthumbnail') {
+/** 14. Thêm thumbnail vào thông tin hôn nhân */
+if (command === 'addthumbnail') {
   const thumbnailUrl = args[0];
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+  if (!userData.marriage.partnerID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.')] });
   }
 
-  if (!thumbnailUrl || !isValidImageUrl(thumbnailUrl)) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng cung cấp một URL hình ảnh hợp lệ.', 'Red')]
-    });
+  if (!isValidImageUrl(thumbnailUrl)) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng cung cấp URL hình ảnh hợp lệ.')] });
   }
 
-  userData.marriageInfo = userData.marriageInfo || {};
-  if (userData.marriageInfo.thumbnail) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Thông tin hôn nhân đã có thumbnail. Hãy xóa thumbnail cũ trước.', 'Red')]
-    });
-  }
-
-  userData.marriageInfo.thumbnail = thumbnailUrl;
+  userData.marriage.thumbnail = thumbnailUrl;
   await userData.save();
 
   return message.reply({
-    embeds: [
-      defaultEmbed(
-        '✅ Thành công',
-        `Đã thêm thumbnail vào thông tin hôn nhân.`,
-        '#FF00CB'
-      )
-    ]
+    embeds: [defaultEmbed('✅ Thành công', 'Đã thêm thumbnail vào thông tin hôn nhân.')]
   });
 }
 
-  /** --- Lệnh xóa ảnh thu nhỏ "delthumbnail" --- */
+/** 15. Xóa thumbnail khỏi thông tin hôn nhân */
 if (command === 'delthumbnail') {
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+  if (!userData.marriage.partnerID || !userData.marriage.thumbnail) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không có thumbnail nào để xóa.')] });
   }
 
-  if (!userData.marriageThumbnail) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có ảnh thu nhỏ trong thông tin hôn nhân.', 'Red')]
-    });
-  }
-
-  userData.marriageThumbnail = null;
+  userData.marriage.thumbnail = null;
   await userData.save();
 
   return message.reply({
-    embeds: [defaultEmbed('✅ Thành công', 'Ảnh thu nhỏ đã được xóa khỏi thông tin hôn nhân.', 'Pink')]
+    embeds: [defaultEmbed('✅ Thành công', 'Thumbnail đã được xóa khỏi thông tin hôn nhân.')]
   });
 }
 
-  /** --- 15. Thêm caption "addcaption" --- */
-  if (command === 'addcaption') {
-    const caption = args.join(' ');
-    if (!caption) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Hãy cung cấp nội dung caption để thêm!', '#FF00CB')]
-      });
-    }
-
-    userData.marriage.caption = caption;
-    await userData.save();
-
-    return message.reply({
-      embeds: [defaultEmbed('✅ Thêm caption thành công', `Caption đã được thêm: "${caption}"`, '#FF00CB')]
-    });
+/** 16. Thêm caption vào thông tin hôn nhân */
+if (command === 'addcaption') {
+  const caption = args.join(' ');
+  if (!userData.marriage.partnerID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.')] });
   }
 
-  /** --- 16. Xóa caption "delcaption" --- */
+  if (!caption) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập nội dung caption.')] });
+  }
+
+  userData.marriage.caption = caption;
+  await userData.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Caption đã được thêm: "${caption}"`)]
+  });
+}
+
+/** 17. Xóa caption khỏi thông tin hôn nhân */
 if (command === 'delcaption') {
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
+  if (!userData.marriage.partnerID || !userData.marriage.caption) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không có caption nào để xóa.')] });
   }
 
-  if (!userData.marriageCaption) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có caption nào trong thông tin hôn nhân.', 'Red')]
-    });
-  }
-
-  userData.marriageCaption = null;
+  userData.marriage.caption = null;
   await userData.save();
 
   return message.reply({
-    embeds: [defaultEmbed('✅ Thành công', 'Caption đã được xóa khỏi thông tin hôn nhân.', '#FF00CB')]
+    embeds: [defaultEmbed('✅ Thành công', 'Caption đã được xóa khỏi thông tin hôn nhân.')]
   });
 }
-  /** --- 17. Tăng điểm yêu thương "luv" --- */
-  /** --- Lệnh cộng điểm yêu thương "luv" --- */
-if (command === 'luv') {
-  if (!userData.marriedTo) {
-    return message.reply({
-      embeds: [defaultEmbed('❌ Lỗi', 'Bạn chưa kết hôn.', 'Red')]
-    });
-  }
 
+/** 18. Lệnh cộng điểm yêu thương */
+if (command === 'luv') {
   const now = Date.now();
   const lastLuvTime = userData.lastLuvTime || 0;
 
-  if (now - lastLuvTime < 3600000) {
+  if (now - lastLuvTime < 3600000) { // 1 giờ
     const remainingTime = Math.ceil((3600000 - (now - lastLuvTime)) / 60000);
     return message.reply({
-      embeds: [
-        defaultEmbed(
-          '⏰ Chờ thêm',
-          `Bạn cần chờ **${remainingTime} phút** trước khi tăng điểm yêu thương lần tiếp theo.`,
-          'Red'
-        )
-      ]
+      embeds: [defaultEmbed('⏰ Chờ thêm', `Bạn cần chờ **${remainingTime} phút** trước khi cộng điểm tiếp.`)]
     });
   }
 
   userData.lastLuvTime = now;
-  userData.lovePoints = (userData.lovePoints || 0) + 1;
+  userData.marriage.lovePoints += 1;
   await userData.save();
 
   return message.reply({
-    embeds: [defaultEmbed('❤️ Thành công', 'Bạn đã cộng 1 điểm yêu thương!', '#FF00CB')]
+    embeds: [defaultEmbed('❤️ Thành công', 'Bạn đã cộng 1 điểm yêu thương!')]
   });
 }
 
-/** --- 18. Xem lại 10 tin nhắn đã xóa "sn" --- */
-  if (command === 'sn') {
-    const deletedMessages = await DeletedMessages.find({ channelID: message.channel.id })
-      .sort({ deletedAt: -1 })
-      .limit(10);
+/** 19. Lệnh dành cho admin: Thêm xu */
+if (command === 'addxu') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  const target = message.mentions.users.first();
+  const amount = parseInt(args[1]);
+
+  if (!target || isNaN(amount) || amount <= 0) {
+    return message.reply('❌ Cú pháp: `e addxu @user <số xu>`.');
+  }
+
+  let targetData = await User.findOne({ userID: target.id });
+  if (!targetData) {
+    targetData = new User({ userID: target.id });
+  }
+
+  targetData.balance += amount;
+  await targetData.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Đã thêm **${amount.toLocaleString()} xu** cho **${target.username}**.`)]
+  });
+}
+
+/** 20. Lệnh dành cho admin: Trừ xu */
+if (command === 'delxu') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  const target = message.mentions.users.first();
+  const amount = parseInt(args[1]);
+
+  if (!target || isNaN(amount) || amount <= 0) {
+    return message.reply('❌ Cú pháp: `e delxu @user <số xu>`.');
+  }
+
+  let targetData = await User.findOne({ userID: target.id });
+  if (!targetData || targetData.balance < amount) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Người dùng không đủ xu để trừ.')] });
+  }
+
+  targetData.balance -= amount;
+  await targetData.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Đã trừ **${amount.toLocaleString()} xu** từ **${target.username}**.`)]
+  });
+}
+
+  /** 21. Lệnh thay đổi prefix (chỉ admin) */
+if (command === 'prefix') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  const newPrefix = args[0];
+  if (!newPrefix) return message.reply('❌ Vui lòng nhập prefix mới.');
+
+  process.env.DEFAULT_PREFIX = newPrefix;
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Prefix của bot đã được đổi thành **${newPrefix}**.`)]
+  });
+}
+
+/** 22. Lệnh reset tất cả dữ liệu bot (chỉ admin) */
+if (command === 'resetallbot') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  await User.deleteMany({});
+  await ShopItem.deleteMany({});
+  await initializeShop();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', 'Tất cả dữ liệu đã được reset.')]
+  });
+}
+
+ /** 23. Xem 10 tin nhắn đã xóa gần nhất */
+const DeletedMessages = []; // Tạm thời lưu tin nhắn đã xóa vào bộ nhớ
+
+client.on('messageDelete', (message) => {
+  if (!message.partial && message.content) {
+    DeletedMessages.unshift({ content: message.content, author: message.author.tag });
+    if (DeletedMessages.length > 10) DeletedMessages.pop(); // Lưu tối đa 10 tin nhắn
+  }
+});
+
+if (command === 'sn') {
+  if (DeletedMessages.length === 0) {
+    return message.reply({
+      embeds: [defaultEmbed('💬 Tin nhắn đã xóa', 'Hiện không có tin nhắn nào bị xóa.')]
+    });
+  }
+
+  let currentIndex = 0;
+
+  const createEmbed = () => {
+    const msg = DeletedMessages[currentIndex];
+    return new EmbedBuilder()
+      .setTitle(`💬 Tin nhắn đã xóa #${currentIndex + 1}`)
+      .setDescription(`**Tác giả:** ${msg.author}\n**Nội dung:** ${msg.content}`)
+      .setFooter({ text: `Trang ${currentIndex + 1} / ${DeletedMessages.length}` });
+  };
+
+  const previousButton = new ButtonBuilder()
+    .setCustomId('previous_sn')
+    .setLabel('⬅️ Trước')
+    .setStyle(ButtonStyle.Primary);
+  const nextButton = new ButtonBuilder()
+    .setCustomId('next_sn')
+    .setLabel('➡️ Tiếp')
+    .setStyle(ButtonStyle.Primary);
+  const row = new ActionRowBuilder().addComponents(previousButton, nextButton);
+
+  const reply = await message.reply({ embeds: [createEmbed()], components: [row] });
+
+  const collector = reply.createMessageComponentCollector({
+    time: 60000,
+    filter: (i) => i.user.id === message.author.id
+  });
+
+  collector.on('collect', async (interaction) => {
+    if (interaction.customId === 'previous_sn' && currentIndex > 0) currentIndex--;
+    if (interaction.customId === 'next_sn' && currentIndex < DeletedMessages.length - 1) currentIndex++;
+
+    await interaction.update({ embeds: [createEmbed()], components: [row] });
+  });
+
+  collector.on('end', () => reply.edit({ components: [] }));
+}
+
+/** 23. Đặt cược Nổ Hũ "nohu" */
+if (command === 'nohu') {
+  const bet = parseInt(args[0]);
+  if (isNaN(bet) || bet <= 0) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập số tiền cược hợp lệ!')] });
+  }
+
+  if (userData.balance < bet) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không đủ xu để đặt cược!')] });
+  }
+
+  const chance = message.author.id === '1262464227348582492' ? 100 : Math.random() * 50;
+  const isWin = chance < 1; // 1/50 tỷ lệ thắng, nhưng admin 100% trúng
+
+  userData.balance -= bet;
+  if (isWin) {
+    const winnings = bet * 100; // Trúng x100
+    userData.balance += winnings;
+    await userData.save();
+    return message.reply({
+      embeds: [defaultEmbed('🎉 Chúc mừng!', `Bạn đã trúng Nổ Hũ và nhận được **${winnings.toLocaleString()} xu**!`)]
+    });
+  } else {
+    await userData.save();
+    return message.reply({
+      embeds: [defaultEmbed('😢 Chia buồn', 'Bạn đã thua cược. Hãy thử lại nhé!')]
+    });
+  }
+}
+
+/** 24. Hiển thị bảng xếp hạng xu "top" */
+if (command === 'top') {
+  const topUsers = await User.find().sort({ balance: -1 }).limit(10);
+  if (!topUsers.length) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không có dữ liệu người dùng trong bảng xếp hạng.')] });
+  }
+
+  const leaderboard = topUsers.map((user, index) => `**${index + 1}.** <@${user.userID}> - **${user.balance.toLocaleString()} xu**`);
+  return message.reply({
+    embeds: [defaultEmbed('🏆 Bảng xếp hạng xu', leaderboard.join('\n'), 'Gold')]
+  });
+}
+
+/** 25. Thêm emoji vào nhẫn "addemoji" (chỉ admin) */
+if (command === 'addemoji') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  const ringID = args[0];
+  const emoji = args[1];
+  if (!ringID || !emoji) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập ID nhẫn và emoji.')] });
+  }
+
+  const ring = await ShopItem.findOne({ id: ringID });
+  if (!ring) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy nhẫn với ID này.')] });
+  }
+
+  ring.emoji = emoji;
+  await ring.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Đã thêm emoji **${emoji}** cho nhẫn **${ring.name}**.`)]
+  });
+}
+  
+/** 26. Xóa emoji khỏi nhẫn "delimoji" (chỉ admin) */
+if (command === 'delimoji') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  const ringID = args[0];
+  if (!ringID) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập ID nhẫn cần xóa emoji.')] });
+  }
+
+  const ring = await ShopItem.findOne({ id: ringID });
+  if (!ring) {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy nhẫn với ID này.')] });
+  }
+
+  ring.emoji = ''; // Xóa emoji
+  await ring.save();
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', `Đã xóa emoji khỏi nhẫn **${ring.name}**.`)]
+  });
+}
+
+/** 27. Reset toàn bộ dữ liệu bot "resetallbot" (chỉ admin) */
+if (command === 'resetallbot') {
+  if (message.author.id !== '1262464227348582492') {
+    return message.reply({ embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.')] });
+  }
+
+  await User.deleteMany({});
+  await ShopItem.deleteMany({});
+  await initializeShop(); // Khởi tạo lại cửa hàng nhẫn
+
+  return message.reply({
+    embeds: [defaultEmbed('✅ Thành công', 'Tất cả dữ liệu đã được reset.')]
+  });
+}
     
-    if (deletedMessages.length === 0) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Không có tin nhắn', 'Hiện tại không có tin nhắn nào đã bị xóa trong kênh này.', 'Red')
-        ]
-      });
-    }
-
-    const messageChunks = deletedMessages.map(
-      (msg, index) =>
-        `**${index + 1}.** [${msg.authorTag}](${msg.content ? msg.content : '*[Nội dung không khả dụng]*'})`
-    );
-
-    const embed = new EmbedBuilder()
-      .setTitle('💬 10 tin nhắn đã xóa gần nhất')
-      .setDescription(messageChunks.join('\n'))
-      .setColor('Red')
-      .setFooter({ text: 'Sử dụng các nút bên dưới để xem chi tiết' });
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('previous_sn')
-        .setLabel('⬅️ Trước')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('next_sn')
-        .setLabel('➡️ Tiếp')
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    return message.reply({ embeds: [embed], components: [row] });
-  }
-
-/** --- 19. Thêm xu "addxu" --- */
-  if (command === 'addxu') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    const target = message.mentions.users.first();
-    const amount = parseInt(args[1]);
-    if (!target || isNaN(amount)) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Lỗi', 'Vui lòng đề cập người dùng và số lượng xu muốn thêm.', 'Red')
-        ]
-      });
-    }
-
-    const targetData = await User.findOne({ userID: target.id });
-    if (!targetData) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Người dùng không tồn tại trong cơ sở dữ liệu.', 'Red')]
-      });
-    }
-
-    targetData.xu += amount;
-    await targetData.save();
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', `Đã thêm **${amount} xu** cho **${target.tag}**.`, 'Red')
-      ]
-    });
-  }
-
-  /** --- 20. Trừ xu "delxu" --- */
-  if (command === 'delxu') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    const target = message.mentions.users.first();
-    const amount = parseInt(args[1]);
-    if (!target || isNaN(amount)) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Lỗi', 'Vui lòng đề cập người dùng và số lượng xu muốn trừ.', 'Red')
-        ]
-      });
-    }
-
-    const targetData = await User.findOne({ userID: target.id });
-    if (!targetData) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Người dùng không tồn tại trong cơ sở dữ liệu.', 'Red')]
-      });
-    }
-
-    if (targetData.xu < amount) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Lỗi', 'Người dùng không đủ xu để trừ.', 'Red')
-        ]
-      });
-    }
-
-    targetData.xu -= amount;
-    await targetData.save();
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', `Đã trừ **${amount} xu** từ **${target.tag}**.`, 'Red')
-      ]
-    });
-  }
-
-  /** --- 21. Thay đổi prefix "prefix" --- */
-  if (command === 'prefix') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    const newPrefix = args[0];
-    if (!newPrefix) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Hãy cung cấp prefix mới!', 'Red')]
-      });
-    }
-
-    config.prefix = newPrefix;
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', `Prefix của bot đã được thay đổi thành **${newPrefix}**`, 'Red')
-      ]
-    });
-  }
-
-  /** --- 22. Reset toàn bộ dữ liệu bot "resetallbot" --- */
-  if (command === 'resetallbot') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    await User.deleteMany({});
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', 'Tất cả dữ liệu đã được reset.', 'Red')
-      ]
-    });
-  }
-
-  /** --- 23. Đặt cược Nổ Hũ "nohu" --- */
-  if (command === 'nohu') {
-    const bet = parseInt(args[0]);
-    if (isNaN(bet) || bet <= 0) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Lỗi', 'Vui lòng nhập số tiền cược hợp lệ!', 'Red')
-        ]
-      });
-    }
-
-    if (userData.xu < bet) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Lỗi', 'Bạn không đủ xu để đặt cược.', 'Red')
-        ]
-      });
-    }
-
-    const chance = message.author.id === '1262464227348582492' ? 100 : Math.random() * 50;
-    const isWin = chance < 1; // 1/50 tỷ lệ thắng, nhưng admin 100% trúng.
-
-    userData.xu -= bet;
-    if (isWin) {
-      const winnings = bet * 100;
-      userData.xu += winnings;
-      await userData.save();
-      return message.reply({
-        embeds: [
-          defaultEmbed('🎉 Chúc mừng!', `Bạn đã trúng Nổ Hũ và nhận được **${winnings} xu**!`, 'Green')
-        ]
-      });
-    } else {
-      await userData.save();
-      return message.reply({
-        embeds: [
-          defaultEmbed('😢 Chia buồn', 'Bạn đã thua cược. Hãy thử lại nhé!', 'Red')
-        ]
-      });
-    }
-  }
-
-  /** --- 24. Hiển thị bảng xếp hạng "top" --- */
-  if (command === 'top') {
-    const topUsers = await User.find().sort({ xu: -1 }).limit(10);
-    if (!topUsers || topUsers.length === 0) {
-      return message.reply({
-        embeds: [
-          defaultEmbed('❌ Không có dữ liệu', 'Không có người dùng nào trong bảng xếp hạng.', 'Red')
-        ]
-      });
-    }
-
-    const leaderboard = topUsers.map(
-      (user, index) => `**${index + 1}.** ${user.username} - **${user.xu.toLocaleString()} xu**`
-    );
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('🏆 Bảng xếp hạng xu', leaderboard.join('\n'), 'Gold')
-      ]
-    });
-  }
-
-  /** --- 25. Hiển thị cửa hàng nhẫn "shop" --- */
-  if (command === 'shop') {
-    const shopDescription = rings
-      .map(
-        (ring) =>
-          `**ID:** ${ring.id} | ${ring.emoji} **${ring.name}** - **${ring.price.toLocaleString()} xu**${
-            ring.lovePoints ? ` | ❤️ **+${ring.lovePoints} điểm yêu thương**` : ''
-          }`
-      )
-      .join('\n');
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('💍 Cửa hàng nhẫn', shopDescription, '#FF00CB')
-      ]
-    });
-  }
-
-  /** --- 26. Thêm emoji vào nhẫn "addemoji" --- */
-  if (command === 'addemoji') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    const ringID = args[0];
-    const emoji = args[1];
-    if (!ringID || !emoji) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập ID nhẫn và emoji.', 'Red')]
-      });
-    }
-
-    const ring = rings.find((r) => r.id === ringID);
-    if (!ring) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy nhẫn với ID đã cung cấp.', 'Red')]
-      });
-    }
-
-    ring.emoji = emoji;
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', `Đã thêm emoji ${emoji} cho nhẫn **${ring.name}**.`, '#FF00CB')
-      ]
-    });
-  }
-
-  /** --- 27. Xóa emoji khỏi nhẫn "delimoji" --- */
-  if (command === 'delimoji') {
-    if (message.author.id !== '1262464227348582492') {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Bạn không có quyền sử dụng lệnh này.', 'Red')]
-      });
-    }
-
-    const ringID = args[0];
-    if (!ringID) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Vui lòng nhập ID nhẫn cần xóa emoji.', 'Red')]
-      });
-    }
-
-    const ring = rings.find((r) => r.id === ringID);
-    if (!ring) {
-      return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Không tìm thấy nhẫn với ID đã cung cấp.', 'Red')]
-      });
-    }
-
-    ring.emoji = '';
-
-    return message.reply({
-      embeds: [
-        defaultEmbed('✅ Thành công', `Đã xóa emoji khỏi nhẫn **${ring.name}**.`, '#FF00CB')
-      ]
-    });
-  }
-
 });
 
-// Thêm cấu hình cổng cho ứng dụng Express
+// Cấu hình Express để chạy trên Render
 const app = express();
-
-// Lắng nghe trên cổng mà Render cung cấp (hoặc cổng 3000 nếu không có cổng Render)
 const port = process.env.PORT || 3000;
-
-// Đảm bảo bot hoạt động trên một cổng
 app.listen(port, () => {
-  console.log(`🌐 Ứng dụng đang chạy trên cổng ${port}`);
+  console.log(`🌐 Server đang chạy trên cổng ${port}`);
 });
 
-// Đăng nhập bot
 client.login(DISCORD_TOKEN);
