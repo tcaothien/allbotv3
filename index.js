@@ -207,7 +207,7 @@ if (command === 'buy') {
       defaultEmbed(
         '✅ Thành công',
         `Bạn đã mua nhẫn **${ring.emoji} ${ring.name}** với giá **${ring.price.toLocaleString()} xu**. Hãy kiểm tra bằng lệnh \`inv\`.`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -218,7 +218,7 @@ if (command === 'inv') {
   const inventory = userData.inventory;
   if (!inventory || inventory.length === 0) {
     return message.reply({
-      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', 'Pink')]
+      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', '#FF00CB')]
     });
   }
 
@@ -231,7 +231,7 @@ if (command === 'inv') {
       defaultEmbed(
         '📦 Kho lưu trữ nhẫn',
         `Danh sách nhẫn bạn sở hữu:\n\n${inventoryList}`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -242,7 +242,7 @@ if (command === 'inv') {
   const inventory = userData.inventory;
   if (!inventory || inventory.length === 0) {
     return message.reply({
-      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', 'Pink')]
+      embeds: [defaultEmbed('📦 Kho lưu trữ nhẫn', 'Bạn chưa sở hữu nhẫn nào.', '#FF00CB')]
     });
   }
 
@@ -255,7 +255,7 @@ if (command === 'inv') {
       defaultEmbed(
         '📦 Kho lưu trữ nhẫn',
         `Danh sách nhẫn bạn sở hữu:\n\n${inventoryList}`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -284,7 +284,7 @@ if (command === 'marry') {
   const marryEmbed = defaultEmbed(
     '💍 Lời cầu hôn',
     `**${message.author.username}** đã cầu hôn **${target.username}** bằng nhẫn **${ring.emoji} ${ring.name}**. Bạn có đồng ý không?`,
-    'Pink'
+    '#FF00CB'
   );
 
   const acceptButton = new MessageButton()
@@ -317,7 +317,7 @@ if (command === 'marry') {
       await targetData.save();
 
       return interaction.update({
-        embeds: [defaultEmbed('💖 Chúc mừng!', 'Cả hai đã kết hôn!', 'Pink')],
+        embeds: [defaultEmbed('💖 Chúc mừng!', 'Cả hai đã kết hôn!', '#FF00CB')],
         components: []
       });
     } else if (interaction.customId === 'decline_marry') {
@@ -364,7 +364,7 @@ if (command === 'marry') {
     const divorceEmbed = new EmbedBuilder()
       .setTitle('💔 Ly hôn')
       .setDescription(`${message.author.username} muốn ly hôn với bạn. Bạn có đồng ý không?`)
-      .setColor('Pink');
+      .setColor('#FF00CB');
 
     const divorceRequest = await message.reply({ embeds: [divorceEmbed], components: [row] });
 
@@ -382,7 +382,7 @@ if (command === 'marry') {
             defaultEmbed(
               '💔 Đã ly hôn',
               `${message.author.username} và ${partnerData.userID} đã chính thức ly hôn.`,
-              'Pink'
+              '#FF00CB'
             )
           ]
         });
@@ -437,7 +437,7 @@ if (command === 'pmarry') {
 
   // Embed hiển thị thông tin
   const embed = new EmbedBuilder()
-    .setColor('Pink')
+    .setColor('#FF00CB')
     .setTitle(`💞 Thông tin hôn nhân của ${message.author.username}`)
     .setDescription(`Bạn đang hạnh phúc với: **${partnerData.username}**`)
     .addFields(
@@ -496,7 +496,7 @@ if (command === 'pmarry') {
       defaultEmbed(
         '✅ Thành công',
         `Đã thêm ảnh lớn vào thông tin hôn nhân.`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -524,7 +524,7 @@ if (command === 'pmarry') {
       defaultEmbed(
         '✅ Thành công',
         `Đã xóa ảnh lớn khỏi thông tin hôn nhân.`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -560,7 +560,7 @@ if (command === 'pmarry') {
       defaultEmbed(
         '✅ Thành công',
         `Đã thêm thumbnail vào thông tin hôn nhân.`,
-        'Pink'
+        '#FF00CB'
       )
     ]
   });
@@ -593,7 +593,7 @@ if (command === 'delthumbnail') {
     const caption = args.join(' ');
     if (!caption) {
       return message.reply({
-        embeds: [defaultEmbed('❌ Lỗi', 'Hãy cung cấp nội dung caption để thêm!', 'Pink')]
+        embeds: [defaultEmbed('❌ Lỗi', 'Hãy cung cấp nội dung caption để thêm!', '#FF00CB')]
       });
     }
 
@@ -601,7 +601,7 @@ if (command === 'delthumbnail') {
     await userData.save();
 
     return message.reply({
-      embeds: [defaultEmbed('✅ Thêm caption thành công', `Caption đã được thêm: "${caption}"`, 'Pink')]
+      embeds: [defaultEmbed('✅ Thêm caption thành công', `Caption đã được thêm: "${caption}"`, '#FF00CB')]
     });
   }
 
@@ -623,7 +623,7 @@ if (command === 'delcaption') {
   await userData.save();
 
   return message.reply({
-    embeds: [defaultEmbed('✅ Thành công', 'Caption đã được xóa khỏi thông tin hôn nhân.', 'Pink')]
+    embeds: [defaultEmbed('✅ Thành công', 'Caption đã được xóa khỏi thông tin hôn nhân.', '#FF00CB')]
   });
 }
   /** --- 17. Tăng điểm yêu thương "luv" --- */
@@ -656,7 +656,7 @@ if (command === 'luv') {
   await userData.save();
 
   return message.reply({
-    embeds: [defaultEmbed('❤️ Thành công', 'Bạn đã cộng 1 điểm yêu thương!', 'Pink')]
+    embeds: [defaultEmbed('❤️ Thành công', 'Bạn đã cộng 1 điểm yêu thương!', '#FF00CB')]
   });
 }
 
@@ -893,7 +893,7 @@ if (command === 'luv') {
 
     return message.reply({
       embeds: [
-        defaultEmbed('💍 Cửa hàng nhẫn', shopDescription, 'Pink')
+        defaultEmbed('💍 Cửa hàng nhẫn', shopDescription, '#FF00CB')
       ]
     });
   }
@@ -925,7 +925,7 @@ if (command === 'luv') {
 
     return message.reply({
       embeds: [
-        defaultEmbed('✅ Thành công', `Đã thêm emoji ${emoji} cho nhẫn **${ring.name}**.`, 'Pink')
+        defaultEmbed('✅ Thành công', `Đã thêm emoji ${emoji} cho nhẫn **${ring.name}**.`, '#FF00CB')
       ]
     });
   }
@@ -956,7 +956,7 @@ if (command === 'luv') {
 
     return message.reply({
       embeds: [
-        defaultEmbed('✅ Thành công', `Đã xóa emoji khỏi nhẫn **${ring.name}**.`, 'Pink')
+        defaultEmbed('✅ Thành công', `Đã xóa emoji khỏi nhẫn **${ring.name}**.`, '#FF00CB')
       ]
     });
   }
