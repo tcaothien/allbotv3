@@ -238,7 +238,7 @@ if (command === 'inv') {
 }
 
   /** --- 7. Tặng nhẫn cho người khác "gift" --- */
-if (command === 'inv') {
+if (command === 'gift') {
   const inventory = userData.inventory;
   if (!inventory || inventory.length === 0) {
     return message.reply({
