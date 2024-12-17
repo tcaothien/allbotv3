@@ -1,3 +1,14 @@
+const rings = [
+      { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '💚' },
+      { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
+      { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
+      { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
+      { id: '05', name: 'ENZ Aquamarine', price: 2500000, emoji: '💎' },
+      { id: '06', name: 'ENZ Emerald', price: 5000000, emoji: '💚' },
+      { id: '07', name: 'ENZ Ruby', price: 10000000, emoji: '❤️' },
+      { id: '333', name: 'ENZ Sapphire', price: 25000000, emoji: '💙', lovePoints: 333 },
+      { id: '999', name: 'ENZ Centenary', price: 99999999, emoji: '💖', lovePoints: 999 },
+    ];
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 require('dotenv').config(); // Load biến môi trường từ .env
@@ -871,18 +882,6 @@ if (command === 'luv') {
 
   /** --- 25. Hiển thị cửa hàng nhẫn "shop" --- */
   if (command === 'shop') {
-    const rings = [
-      { id: '01', name: 'ENZ Peridot', price: 100000, emoji: '💚' },
-      { id: '02', name: 'ENZ Citrin', price: 200000, emoji: '💛' },
-      { id: '03', name: 'ENZ Topaz', price: 500000, emoji: '🟡' },
-      { id: '04', name: 'ENZ Spinel', price: 1000000, emoji: '🟥' },
-      { id: '05', name: 'ENZ Aquamarine', price: 2500000, emoji: '💎' },
-      { id: '06', name: 'ENZ Emerald', price: 5000000, emoji: '💚' },
-      { id: '07', name: 'ENZ Ruby', price: 10000000, emoji: '❤️' },
-      { id: '333', name: 'ENZ Sapphire', price: 25000000, emoji: '💙', lovePoints: 333 },
-      { id: '999', name: 'ENZ Centenary', price: 99999999, emoji: '💖', lovePoints: 999 },
-    ];
-
     const shopDescription = rings
       .map(
         (ring) =>
