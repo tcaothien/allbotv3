@@ -315,7 +315,6 @@ if (command === 'pmarry') {
     .setTitle('💞 Thông tin hôn nhân')
     .setDescription(`Bạn đang hạnh phúc với: **${partner.username}**`)
     .addFields(
-      { name: '💍 Nhẫn', value: `${ring.emoji} ${ring.name}`, inline: true },
       { name: '❤️ Điểm yêu thương', value: `${userData.marriage.lovePoints || 0}`, inline: true },
       { name: '📅 Ngày kết hôn', value: `${userData.marriage.weddingDate.toDateString()}`, inline: true }
     )
