@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 require('dotenv').config(); // Load biến môi trường từ .env
+const express = require('express'); // Import express
 
 // Lấy thông tin từ biến môi trường
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -961,6 +962,17 @@ if (command === 'luv') {
     });
   }
 
+});
+
+// Thêm cấu hình cổng cho ứng dụng Express
+const app = express();
+
+// Lắng nghe trên cổng mà Render cung cấp (hoặc cổng 3000 nếu không có cổng Render)
+const port = process.env.PORT || 3000;
+
+// Đảm bảo bot hoạt động trên một cổng
+app.listen(port, () => {
+  console.log(`🌐 Ứng dụng đang chạy trên cổng ${port}`);
 });
 
 // Đăng nhập bot
